@@ -30,7 +30,7 @@ definition(
     namespace: "klutka",
     author: "Justin Klutka",
     description: "Designed to coordinate device operating state for a thermostat to a set of switches.",
-    category: "Green Living",
+    category: "Convenience",
     iconUrl: "http://cdn.device-icons.smartthings.com/Lighting/light24-icn.png",
     iconX2Url: "http://cdn.device-icons.smartthings.com/Lighting/light24-icn@2x.png"
 )
