@@ -10,7 +10,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *  Synchro Ceiling Fans
+ *  Ceiling Fan Automation
  *
  *  Author: Justin Klutka
  */
@@ -19,6 +19,8 @@
  	Version History:
     
     1.0 - 5/29/2016 - Basic version release.  You may specifiy a thermostat and a set of fans
+    1.1 - 11/23/2016 - Migrated to a new repo and removed the testing field for snooze actions
+    1.2 - 7/13/2017 - Added Sleep time window to avoid fan coming on when it is unwanted. Code refactor.
     
     
     Future Plans:
@@ -44,103 +46,111 @@ preferences() {
     section("Fan Setup") {
     	input "fans", "capability.switch", required: true, multiple: true, title: "Select your Fans or Fan Switches"
     }
-    section("Snooze Events") {
-    	input "motionSensors", "capability.motionSensor", required: false, title: "Snooze if motion is detected in one of these locations.", multiple: true
+    section("Sleep Period") {
+    	input "sleepTimeStart", "time", title: "Starting: ", required: false
+        input "sleepTimeEnd", "time", title: "Ending: ", required: false
     }
     
 }
 
-def installed()
-{
+def installed() {
 	subscribeToEvents()
 }
 
-def updated()
-{
+def updated() {
 	unsubscribe()
 	subscribeToEvents()
 }
 
-def subscribeToEvents()
-{
-	
-	if (thermostat) {
+def subscribeToEvents() {	
+	if (thermostat) 
         subscribe(thermostat, "thermostatOperatingState", operatingStateHandler)
-	}
-	evaluate()
-}
-
-def operatingStateHandler(evt)
-{
-	evaluate()
-}
-
-private evaluate()
-{
 	
-    if (thermostat) {
-        def currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
-        def fansShouldBeOn = false
-        log.debug("The current thermostat operating state: ${currentOperatingState}.")
-                        
-        triggerStates.each { 
-        	if (it == currentOperatingState) {
-            	switchesOn()
-                fansShouldBeOn = true
-            }            
-        }
-        
-        //handle off condition
-        if (fansShouldBeOn == false)
-        	switchesOff()
-        
-		//switch statement in case logical branching by operating state is needed in the future
-        /*
-		switch (currentOperatingState) {
-        	case "heating":
-            	switchesOn()
-            	break
-            
-            case "pending heat":
-            	switchesOn()
-            	break
-            
-            case "cooling":
-            	switchesOn()
-            	break
-            
-            case "pending cool":
-            	switchesOn()
-            	break
-            
-            case "fan only":
-            	switchesOn()
-            	break
-            
-            default:
-            	switchesOff()
-                log.debug("evaluate:switch statement encountered an unsupported operating state during the event handler")
-                break
-        }
-        */
+	evaluateAutomation()
+}
 
+def operatingStateHandler(evt) {
+	log.debug("The thermostat operating state changed.")
+    evaluateAutomation()
+}
 
+//called on a schedule to determine if sleep mode requires fans to shut off
+def sleepEnforcement() {
+	if (isSleepTime) {
+    	switchesOff()
+    }
+}
+
+//core function to evaluate if fans should be automated
+private evaluateAutomation() {	    
+	
+    if (fansRequired()) {
+    	if (!isSleepTime()) {
+        	switchesOn()
+            
+            //if a sleep preference exists monitor for sleep time
+            if (sleepPreference()) {
+            	runEvery15Minutes(sleepEnforcement)
+            }
+        }        
     }
     else {
+    	switchesOff()
+	}
+}
+
+//Returns if operating state requires fans to come on
+private fansRequired () {
+	def currentOperatingState
+    
+    if (!thermostat) {
     	log.trace("A thermostat poll will be requested")
     	thermostat.poll()
     }
+    
+	currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
+    log.debug("Evaluation operating state: ${currentOperatingState}.") 
+    
+    //evaluate if an operating state requiring fans is present
+    triggerStates.each { 
+        if (it == currentOperatingState) {                       	
+            return true
+        }            
+    }
+    
+    //no fans are required
+    return false
 }
 
-private switchesOn()
-{	
+//Returns if a sleep preference was set
+private sleepPreference() {
+	//evaluate if sleep rules need to be observed
+    if (sleepTimeStart != null && sleepTimeEnd != null)
+    	return true
+    else
+    	return false
+}
+
+//Evaluate if sleep time needs to be observed
+private isSleepTime() {
+	if (sleepPreference()) {
+    	log.trace("A sleep preference is present")
+		return timeOfDayIsBetween(fromTime, toTime, new Date(), location.timeZone)
+    }
+    else {
+    	return false
+    }
+}
+
+//Turns on all fans
+private switchesOn() {	
 	fans.each {
     	it.on()
     }
 }
 
-private switchesOff()
-{
+//Turns off all fans
+private switchesOff() {
 	fans.each {
     	it.off()
     }
