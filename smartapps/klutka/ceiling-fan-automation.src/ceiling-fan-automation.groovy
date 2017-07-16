@@ -21,6 +21,7 @@
     1.0 - 5/29/2016 - Basic version release.  You may specifiy a thermostat and a set of fans
     1.1 - 11/23/2016 - Migrated to a new repo and removed the testing field for snooze actions
     1.2 - 7/13/2017 - Added Sleep time window to avoid fan coming on when it is unwanted. Code refactor.
+    1.3 - 7/16/2017 - Logic bug fix
     
     
     Future Plans:
@@ -55,11 +56,13 @@ preferences() {
 
 def installed() {
 	subscribeToEvents()
+    evaluateAutomation()
 }
 
 def updated() {
 	unsubscribe()
 	subscribeToEvents()
+    evaluateAutomation()
 }
 
 def subscribeToEvents() {	
@@ -75,8 +78,8 @@ def operatingStateHandler(evt) {
 }
 
 //called on a schedule to determine if sleep mode requires fans to shut off
-def sleepEnforcement() {
-	if (isSleepTime) {
+def sleepEnforcement(fromTime, toTime) {
+	if (isSleepTime(fromTime, toTime)) {
     	switchesOff()
     }
 }
@@ -85,12 +88,12 @@ def sleepEnforcement() {
 private evaluateAutomation() {	    
 	
     if (fansRequired()) {
-    	if (!isSleepTime()) {
+    	if (!isSleepTime(sleepTimeStart, sleepTimeEnd)) {
         	switchesOn()
             
             //if a sleep preference exists monitor for sleep time
-            if (sleepPreference()) {
-            	runEvery15Minutes(sleepEnforcement)
+            if (sleepPreference(sleepTimeStart, sleepTimeEnd)) {
+            	runEvery15Minutes(sleepEnforcement(sleepTimeStart, sleepTimeEnd))
             }
         }        
     }
@@ -102,6 +105,7 @@ private evaluateAutomation() {
 //Returns if operating state requires fans to come on
 private fansRequired () {
 	def currentOperatingState
+    def matchingOperatingState = false
     
     if (!thermostat) {
     	log.trace("A thermostat poll will be requested")
@@ -114,26 +118,26 @@ private fansRequired () {
     //evaluate if an operating state requiring fans is present
     triggerStates.each { 
         if (it == currentOperatingState) {                       	
-            return true
+            matchingOperatingState = true
         }            
     }
-    
+        
     //no fans are required
-    return false
+    return matchingOperatingState
 }
 
 //Returns if a sleep preference was set
-private sleepPreference() {
+private sleepPreference(fromTime, toTime) {
 	//evaluate if sleep rules need to be observed
-    if (sleepTimeStart != null && sleepTimeEnd != null)
+    if (fromTime != null && toTime != null)
     	return true
     else
     	return false
 }
 
 //Evaluate if sleep time needs to be observed
-private isSleepTime() {
-	if (sleepPreference()) {
+private isSleepTime(fromTime, toTime) {
+	if (sleepPreference(fromTime, toTime)) {
     	log.trace("A sleep preference is present")
 		return timeOfDayIsBetween(fromTime, toTime, new Date(), location.timeZone)
     }
