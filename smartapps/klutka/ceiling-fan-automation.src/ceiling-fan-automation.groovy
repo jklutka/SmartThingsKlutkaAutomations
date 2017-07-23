@@ -56,13 +56,11 @@ preferences() {
 
 def installed() {
 	subscribeToEvents()
-    evaluateAutomation()
 }
 
 def updated() {
 	unsubscribe()
 	subscribeToEvents()
-    evaluateAutomation()
 }
 
 def subscribeToEvents() {	
@@ -73,29 +71,28 @@ def subscribeToEvents() {
 }
 
 def operatingStateHandler(evt) {
-	log.debug("The thermostat operating state changed.")
+	log.debug("The thermostat operating state changed at ${new Date()}.")    
     evaluateAutomation()
 }
 
-//called on a schedule to determine if sleep mode requires fans to shut off
-def sleepEnforcement(fromTime, toTime) {
-	if (isSleepTime(fromTime, toTime)) {
-    	switchesOff()
-    }
-}
-
 //core function to evaluate if fans should be automated
-private evaluateAutomation() {	    
-	
+def evaluateAutomation() {	    
+	log.debug("Evaluation of Automation happened at ${new Date()}.")
+    
+    if (isSleepTime()) {
+    	log.debug("Enforce sleep mode at ${new Date()}.")
+    	switchesOff()
+        return
+    }
+    
     if (fansRequired()) {
-    	if (!isSleepTime(sleepTimeStart, sleepTimeEnd)) {
-        	switchesOn()
-            
-            //if a sleep preference exists monitor for sleep time
-            if (sleepPreference(sleepTimeStart, sleepTimeEnd)) {
-            	runEvery15Minutes(sleepEnforcement(sleepTimeStart, sleepTimeEnd))
-            }
-        }        
+        switchesOn()
+
+        //if a sleep preference exists monitor for sleep time
+        if (sleepPreference()) {
+            log.debug("A 15 minute sleep check was scheduled at ${new Date()}.")
+            runEvery15Minutes(evaluateAutomation)
+        }      
     }
     else {
     	switchesOff()
@@ -105,41 +102,40 @@ private evaluateAutomation() {
 //Returns if operating state requires fans to come on
 private fansRequired () {
 	def currentOperatingState
-    def matchingOperatingState = false
     
     if (!thermostat) {
-    	log.trace("A thermostat poll will be requested")
+    	log.trace("A thermostat poll will be requested because the thermostat was null.")
     	thermostat.poll()
     }
     
 	currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
-    log.debug("Evaluation operating state: ${currentOperatingState}.") 
-    
+    log.debug("Current operating state: ${currentOperatingState}.") 
+    log.debug("Seeking operating state: ${triggerStates}.") 
     //evaluate if an operating state requiring fans is present
-    triggerStates.each { 
-        if (it == currentOperatingState) {                       	
-            matchingOperatingState = true
-        }            
-    }
-        
-    //no fans are required
-    return matchingOperatingState
+    if (triggerStates.toString() == currentOperatingState) {                       	
+        return true
+    }   
+    else {
+    	//no fans are required
+    	return false
+    }      
 }
 
 //Returns if a sleep preference was set
-private sleepPreference(fromTime, toTime) {
+private sleepPreference() {
 	//evaluate if sleep rules need to be observed
-    if (fromTime != null && toTime != null)
+    log.trace("A sleep preference evaluation of ${sleepTimeStart} and ${sleepTimeEnd} inputs.")
+    if (sleepTimeStart != null && sleepTimeEnd != null)
     	return true
     else
     	return false
 }
 
 //Evaluate if sleep time needs to be observed
-private isSleepTime(fromTime, toTime) {
-	if (sleepPreference(fromTime, toTime)) {
+private isSleepTime() {
+	if (sleepPreference()) {
     	log.trace("A sleep preference is present")
-		return timeOfDayIsBetween(fromTime, toTime, new Date(), location.timeZone)
+		return timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)
     }
     else {
     	return false
@@ -148,6 +144,7 @@ private isSleepTime(fromTime, toTime) {
 
 //Turns on all fans
 private switchesOn() {	
+	log.debug("Fans powered on at ${new Date()}.")
 	fans.each {
     	it.on()
     }
@@ -155,6 +152,7 @@ private switchesOn() {
 
 //Turns off all fans
 private switchesOff() {
+	log.debug("Fans powered off at ${new Date()}.")
 	fans.each {
     	it.off()
     }
