@@ -110,7 +110,7 @@ def fansRequired () {
     }
     
 	currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
-    log.debug("Current operating state: ${currentOperatingState}.") 
+    log.debug("Current operating state: ${currentOperatingState.toString()}.") 
     log.debug("Seeking operating state: ${triggerStates.toString()}.") 
     //evaluate if an operating state requiring fans is present
     if (triggerStates.toString() == currentOperatingState.toString()) {                       	
