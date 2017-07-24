@@ -22,6 +22,7 @@
     1.1 - 11/23/2016 - Migrated to a new repo and removed the testing field for snooze actions
     1.2 - 7/13/2017 - Added Sleep time window to avoid fan coming on when it is unwanted. Code refactor.
     1.3 - 7/16/2017 - Logic bug fix
+    1.4 - 7/24/2017 - Fixed a bug with the sleep time monitor logic.
     
     
     Future Plans:
@@ -41,15 +42,15 @@ definition(
 preferences() {
 	section("Thermostat Setup") {
 		input "thermostat", "capability.thermostat", required: true, title: "Select your thermostat"
-        input "triggerStates", "enum", title: "Select your trigger operating states", multiple: true, required: false, options:
+        input "triggerStates", "enum", title: "Select your trigger operating states", multiple: true, required: true, options:
           [["heating": "heating"], ["cooling": "cooling"], ["fan only": "fan only"], ["idle": "idle"]]
 	}
     section("Fan Setup") {
     	input "fans", "capability.switch", required: true, multiple: true, title: "Select your Fans or Fan Switches"
     }
     section("Sleep Period") {
-    	input "sleepTimeStart", "time", title: "Starting: ", required: false
-        input "sleepTimeEnd", "time", title: "Ending: ", required: false
+    	input "sleepTimeStart", "time", title: "Starting:", required: false
+        input "sleepTimeEnd", "time", title: "Ending:", required: false
     }
     
 }
@@ -86,33 +87,33 @@ def evaluateAutomation() {
     }
     
     if (fansRequired()) {
-        switchesOn()
-
-        //if a sleep preference exists monitor for sleep time
-        if (sleepPreference()) {
-            log.debug("A 15 minute sleep check was scheduled at ${new Date()}.")
-            runEvery15Minutes(evaluateAutomation)
-        }      
+        switchesOn()  
     }
     else {
     	switchesOff()
 	}
+    
+    //if a sleep preference exists monitor for sleep time
+    if (sleepPreference()) {
+        log.debug("A 15 minute sleep check was scheduled at ${new Date()}.")
+        runEvery15Minutes(evaluateAutomation)
+    }    
 }
 
 //Returns if operating state requires fans to come on
-private fansRequired () {
+def fansRequired () {
 	def currentOperatingState
     
     if (!thermostat) {
-    	log.trace("A thermostat poll will be requested because the thermostat was null.")
+    	log.debug("A thermostat poll will be requested because the thermostat was null.")
     	thermostat.poll()
     }
     
 	currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
     log.debug("Current operating state: ${currentOperatingState}.") 
-    log.debug("Seeking operating state: ${triggerStates}.") 
+    log.debug("Seeking operating state: ${triggerStates.toString()}.") 
     //evaluate if an operating state requiring fans is present
-    if (triggerStates.toString() == currentOperatingState) {                       	
+    if (triggerStates.toString() == currentOperatingState.toString()) {                       	
         return true
     }   
     else {
@@ -122,9 +123,9 @@ private fansRequired () {
 }
 
 //Returns if a sleep preference was set
-private sleepPreference() {
+def sleepPreference() {
 	//evaluate if sleep rules need to be observed
-    log.trace("A sleep preference evaluation of ${sleepTimeStart} and ${sleepTimeEnd} inputs.")
+    log.debug("A sleep preference evaluation of ${sleepTimeStart} and ${sleepTimeEnd} inputs.")
     if (sleepTimeStart != null && sleepTimeEnd != null)
     	return true
     else
@@ -132,9 +133,8 @@ private sleepPreference() {
 }
 
 //Evaluate if sleep time needs to be observed
-private isSleepTime() {
+def isSleepTime() {
 	if (sleepPreference()) {
-    	log.trace("A sleep preference is present")
 		return timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)
     }
     else {
