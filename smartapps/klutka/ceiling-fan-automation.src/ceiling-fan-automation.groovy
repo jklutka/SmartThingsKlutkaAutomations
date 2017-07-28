@@ -65,15 +65,29 @@ def updated() {
 }
 
 def subscribeToEvents() {	
-	if (thermostat) 
+	if (thermostat) {
         subscribe(thermostat, "thermostatOperatingState", operatingStateHandler)
-	
+	}
+    
+	if (fans) {
+    	subscribe(fans, "switch.on", switchOnHandler)
+        subscribe(fans, "switch.off", switchOffHandler)
+	}
+    
 	evaluateAutomation()
 }
 
 def operatingStateHandler(evt) {
 	log.debug("The thermostat operating state changed at ${new Date()}.")    
     evaluateAutomation()
+}
+
+def switchOnHandler(evt) {
+
+}
+
+def switchOffHandler(evt) {
+	
 }
 
 //core function to evaluate if fans should be automated
@@ -94,7 +108,7 @@ def evaluateAutomation() {
 	}
     
     //if a sleep preference exists monitor for sleep time
-    if (sleepPreference()) {
+    if (sleepTimeStart != null && sleepTimeEnd != null) {
         log.debug("A 15 minute sleep check was scheduled at ${new Date()}.")
         runEvery15Minutes(evaluateAutomation)
     }    
@@ -111,42 +125,33 @@ def fansRequired () {
     
 	currentOperatingState = thermostat.currentState("thermostatOperatingState")?.value
     log.debug("Current operating state: ${currentOperatingState.toString()}.") 
-    log.debug("Seeking operating state: ${triggerStates.toString()}.") 
+        
     //evaluate if an operating state requiring fans is present
-    if (triggerStates.toString() == currentOperatingState.toString()) {                       	
+    log.debug("Seeking operating state: ${triggerStates.toString()}.") 
+    if (triggerStates.contains(currentOperatingState.toString())) {                       	
         return true
-    }   
+    }  
     else {
-    	//no fans are required
-    	return false
-    }      
-}
-
-//Returns if a sleep preference was set
-def sleepPreference() {
-	//evaluate if sleep rules need to be observed
-    log.debug("A sleep preference evaluation of ${sleepTimeStart} and ${sleepTimeEnd} inputs.")
-    if (sleepTimeStart != null && sleepTimeEnd != null)
-    	return true
-    else
-    	return false
+        //no fans are required
+        return false
+    }
 }
 
 //Evaluate if sleep time needs to be observed
 def isSleepTime() {
-	if (sleepPreference()) {
-		return timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)
+    if (sleepTimeStart != null && sleepTimeEnd != null) {
+        return timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)      
     }
     else {
     	return false
-    }
+	}
 }
 
 //Turns on all fans
 private switchesOn() {	
 	log.debug("Fans powered on at ${new Date()}.")
 	fans.each {
-    	it.on()
+		it.on()
     }
 }
 
@@ -154,6 +159,6 @@ private switchesOn() {
 private switchesOff() {
 	log.debug("Fans powered off at ${new Date()}.")
 	fans.each {
-    	it.off()
+		it.off()
     }
 }
