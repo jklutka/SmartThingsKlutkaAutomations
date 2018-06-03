@@ -23,6 +23,8 @@
     1.2 - 7/13/2017 - Added Sleep time window to avoid fan coming on when it is unwanted. Code refactor.
     1.3 - 7/16/2017 - Logic bug fix
     1.4 - 7/24/2017 - Fixed a bug with the sleep time monitor logic.
+    1.5 - 8/1/2017 - Added a sleep mode based on motion from one sensor.
+    1.6 - 6/3/2018 - Code clean up to simplify exception rule logic.
     
     
     Future Plans:
@@ -48,10 +50,13 @@ preferences() {
     section("Fan Setup") {
     	input "fans", "capability.switch", required: true, multiple: true, title: "Select your Fans or Fan Switches"
     }
-    section("Sleep Period") {
-    	input "sleepTimeStart", "time", title: "Starting:", required: false
+    section("Exception Conditions") {
+    	input "sleepTimeStart", "time", title: "Do NOT run Starting:", required: false
         input "sleepTimeEnd", "time", title: "Ending:", required: false
+        input "sleepMotion", "capability.motionSensor", title: "Do NOT run when motion has occured here:", required: false, multiple: false
+        input "sleepMotionTimer", "integer", title: "Minutes since last motion (Default 15):", required: false, 	multiple: false
     }
+    
     
 }
 
@@ -74,6 +79,10 @@ def subscribeToEvents() {
         subscribe(fans, "switch.off", switchOffHandler)
 	}
     
+    if (sleepMotion) {
+    	subscribe(sleepMotion, "motion.active", motionSleepHandler)
+    }
+    
 	evaluateAutomation()
 }
 
@@ -83,35 +92,44 @@ def operatingStateHandler(evt) {
 }
 
 def switchOnHandler(evt) {
-
+	log.debug("Switch turned on at ${new Date()}.")
 }
 
 def switchOffHandler(evt) {
-	
+	log.debug("Switch turned off at ${new Date()}.")
+}
+
+def motionSleepHandler(evt) {
+	log.debug("Motion detected at a motion sensor setup as an exception.")
+	evaluateAutomation()
 }
 
 //core function to evaluate if fans should be automated
 def evaluateAutomation() {	    
 	log.debug("Evaluation of Automation happened at ${new Date()}.")
     
-    if (isSleepTime()) {
-    	log.debug("Enforce sleep mode at ${new Date()}.")
-    	switchesOff()
-        return
-    }
+    //determine if fans should be on
+	if (fansRequired()) {
     
-    if (fansRequired()) {
-        switchesOn()  
+        //evaluate if an exception rule is active
+        if (isExceptionRuleActive()) {
+        	//shut off fans if they are on now that an exception rule is active
+            switchesOff()
+            //set a recheck in 15 minutes
+            runEvery15Minutes(evaluateAutomation)
+            log.debug("Active Exception Rules. A 15 minute recheck was scheduled at ${new Date()}.")
+            return;
+       	}
+        else {
+        	//fans are required and no exception rules are active
+            switchesOn()
+        } 
     }
-    else {
+	else {
+    	//the fans are not needed and should be shut off
     	switchesOff()
 	}
     
-    //if a sleep preference exists monitor for sleep time
-    if (sleepTimeStart != null && sleepTimeEnd != null) {
-        log.debug("A 15 minute sleep check was scheduled at ${new Date()}.")
-        runEvery15Minutes(evaluateAutomation)
-    }    
 }
 
 //Returns if operating state requires fans to come on
@@ -138,20 +156,48 @@ def fansRequired () {
 }
 
 //Evaluate if sleep time needs to be observed
-def isSleepTime() {
+def isExceptionRuleActive () {
+	def timeOfDayException = false
+    def motionException = false
+    
+    //evaluate time of day rule
     if (sleepTimeStart != null && sleepTimeEnd != null) {
-        return timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)      
+        timeOfDayException = timeOfDayIsBetween(sleepTimeStart, sleepTimeEnd, new Date(), location.timeZone)      
     }
-    else {
-    	return false
+    
+    //evaluate if a motion 
+    if (sleepMotion) {
+        //get the most recent motion event for the motion sensor
+        def recentEvents = sleepMotion.events([max:1])
+
+        //capture motion lookback setting and handle null
+        def motionLookBack = sleepMotionTimer == null ?: 15
+
+        //evaluate the motion rule
+        if (recentEvents.size > 0) {
+            log.debug("The most recent active motion was ${recentEvents[0].date.time}.")
+            if (now() - recentEvents[0].date.time <= 15 * 60000) {
+                log.debug("Exiting due to sleep motion trigger event ${now() - recentEvents[0].date.time}.")
+                motionException = true
+            }
+        }
 	}
+    
+    if (timeOfDayException || motionException)
+    	return true
+    else
+    	return false
+
 }
 
 //Turns on all fans
 private switchesOn() {	
 	log.debug("Fans powered on at ${new Date()}.")
 	fans.each {
-		it.on()
+		log.debug("Fan switch is ${it.currentState("switch")?.value}.")
+    	if (it.currentState("switch")?.value != "on") {
+			it.on()
+		}
     }
 }
 
@@ -159,6 +205,9 @@ private switchesOn() {
 private switchesOff() {
 	log.debug("Fans powered off at ${new Date()}.")
 	fans.each {
-		it.off()
+		log.debug("Fan switch is ${it.currentState("switch")?.value}.")
+		if (it.currentState("switch")?.value != "off") {
+			it.off()
+		}
     }
 }
