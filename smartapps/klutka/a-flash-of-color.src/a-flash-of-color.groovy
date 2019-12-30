@@ -80,7 +80,7 @@ def colorFlashHandler(evt) {
 	log.trace "Flash Handler $evt.value"
 	colorFlashLights()    
     log.debug "Setting up delay statement for ${onFor}."
-    runIn(onFor,restoreDefaultColor)
+    //runIn(onFor,restoreDefaultColor)
 }
 
 def presenceHandler(evt) {
@@ -130,25 +130,23 @@ private getBulbColor(colorValue)
 }
 
 private colorFlashLights() {
-	     
-    def onFor = onFor ?: 0
-	    
-    log.debug "Requested Color Flash of: ${lightColor}"
+	     	    
+    log.debug "Processing Color Change: ${lightColor}"
 
-    switches.each { 
-        it.setColor(getBulbColor(lightColor))              
-    }
+    //switches.each { 
+    //    it.setColor(getBulbColor(lightColor))
+    //}
     
-   restoreDefaultColor()
+    restoreDefaultColor()
          
     //NOTE: Attempting to pass the instruction twice to catch lights that inconsistently turn
     //TODO: Update to self check light hue values and address just those
-    switches.each { 
-        it.setColor(getBulbColor(lightColor))              
-    }        
+    //switches.each { 
+   //     it.setColor(getBulbColor(lightColor))              
+    //}        
     
-    if ( onFor > 0 ) {
-    	runIn(onFor, restoreDefaultColor)
-    }
+    //if ( onFor > 0 ) {
+    //	runIn(onFor, restoreDefaultColor)
+    //}
 }
 

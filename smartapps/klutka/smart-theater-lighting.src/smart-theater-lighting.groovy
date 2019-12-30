@@ -27,21 +27,17 @@ definition(
 )
 
 preferences {
-	section("Choose one or more, when..."){
-		input "harmonySwitches", "capability.switch", title: "Select all viewing events (ex: Harmony switches).", required: false, multiple: true
-        input "theaterSwitch", "capability.switch", title: "Assign a switch to represent theater mode. A virtual switch is recommended.", required: false, multiple: true
-        input "theaterMotion", "capability.motionSensor", title: "Motion sensors to represent theater occupancy.", required: false, multiple: true
-        input "button", "capability.button", title: "Button Pushed", required: false, multiple: true //tw
-		input "motion", "capability.motionSensor", title: "Motion Here", required: false, multiple: true
-		input "contact", "capability.contactSensor", title: "Contact Opens", required: false, multiple: true
-		input "contactClosed", "capability.contactSensor", title: "Contact Closes", required: false, multiple: true
-		input "acceleration", "capability.accelerationSensor", title: "Acceleration Detected", required: false, multiple: true
-		input "mySwitch", "capability.switch", title: "Switch Turned On", required: false, multiple: true
-		input "mySwitchOff", "capability.switch", title: "Switch Turned Off", required: false, multiple: true
-		input "arrivalPresence", "capability.presenceSensor", title: "Arrival Of", required: false, multiple: true
-		input "departurePresence", "capability.presenceSensor", title: "Departure Of", required: false, multiple: true
-		input "smoke", "capability.smokeDetector", title: "Smoke Detected", required: false, multiple: true
-		input "water", "capability.waterSensor", title: "Water Sensor Wet", required: false, multiple: true
+	section("Room Settings"){
+		input "harmonyScenes", "capability.switch", title: "Select all viewing scenes (ex: Harmony activities).", required: false, multiple: true        
+        input "theaterMotion", "capability.motionSensor", title: "Motion sensors to represent theater occupancy.", required: false, multiple: true        
+        input "movieSwitch", "capability.switch", title: "Assign a switch to represent movie watching mode. A virtual switch is recommended.", required: false, multiple: false
+        input "partySwitch", "capability.switch", title: "Assign a switch to represent party mode. A virtual switch is recommend.", required: false, multiple: false
+        input "defaultLights", "capability.light", title: "Lights used for Default lighting mode.", required: true, multiple: true
+        input "movieLights", "capability.light", title: "Lights used for Movie lighting mode.", required: true, multiple: true
+        input "partyLights", "capability.light", title: "Lights used for Party lighting mode.", required: false, multiple: true        
+	}
+    section("Light Settings"){
+		input "lightAutoOffThreshold", "number", title: "Turn of theater lights after inactivty.", required: false, multiple: false, description: "Enter minutes before auto light shut off."        
 	}
 	section("Send this message (optional, sends standard status message if not specified)"){
 		input "messageText", "text", title: "Message Text", required: false
@@ -70,13 +66,15 @@ def updated() {
 }
 
 def subscribeToEvents() {
-	subscribe(button, "button.pushed", eventHandler) //tw
+	subscribe(theaterMotion, "button.pushed", eventHandler) //tw
 	subscribe(contact, "contact.open", eventHandler)
 	subscribe(contactClosed, "contact.closed", eventHandler)
 	subscribe(acceleration, "acceleration.active", eventHandler)
-	subscribe(motion, "motion.active", eventHandler)
-	subscribe(mySwitch, "switch.on", eventHandler)
-	subscribe(mySwitchOff, "switch.off", eventHandler)
+    
+	subscribe(theaterMotion, "motion.active", theaterMotionEventHandler)
+    subscribe(harmonyScenes, "switch.on", eventHandler)
+	subscribe(harmonyScenes, "switch.off", eventHandler)
+    
 	subscribe(arrivalPresence, "presence.present", eventHandler)
 	subscribe(departurePresence, "presence.not present", eventHandler)
 	subscribe(smoke, "smoke.detected", eventHandler)
@@ -97,6 +95,16 @@ def eventHandler(evt) {
 		sendMessage(evt)
 	}
 }
+
+def theaterMotionEventHandler(evt) {
+	
+}
+
+def theaterSceneChangeEventHandler(evt) {
+
+}
+
+
 
 private sendMessage(evt) {
 	String msg = messageText

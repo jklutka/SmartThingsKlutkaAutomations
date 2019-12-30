@@ -83,20 +83,31 @@ def subscribeToEvents() {
     	subscribe(sleepMotion, "motion.active", motionSleepHandler)
     }
     
+    //default state values
+    state.ManualOnRequested = false
+    state.ManualOffRequested = false
+    
 	evaluateAutomation()
 }
 
 def operatingStateHandler(evt) {
-	log.debug("The thermostat operating state changed at ${new Date()}.")    
+	log.debug("The thermostat operating state changed at ${new Date()}.") 
+    //clear manual operating assumptions from state when state of hvac changes
+    state.ManualOnRequested = false
+    state.ManualOffRequested = false
     evaluateAutomation()
 }
 
 def switchOnHandler(evt) {
 	log.debug("Switch turned on at ${new Date()}.")
+    //capture a state variable indicationg a manual on was requested
+    state.ManualOnRequested = true
 }
 
 def switchOffHandler(evt) {
-	log.debug("Switch turned off at ${new Date()}.")
+	log.debug("Switch manually turned off at ${new Date()}.")
+    //capture a state variable indicating a manual off was requested
+    state.ManualOffRequested = true 
 }
 
 def motionSleepHandler(evt) {
@@ -110,20 +121,20 @@ def evaluateAutomation() {
     
     //determine if fans should be on
 	if (fansRequired()) {
-    
-        //evaluate if an exception rule is active
+    	log.debug("Manual on state value is ${state.ManualOnRequested}.")
+        //evaluate if an exception rule is active or if a manual on state was requested
         if (isExceptionRuleActive()) {
-        	//shut off fans if they are on now that an exception rule is active
+            //shut off fans if they are on now that an exception rule is active
             switchesOff()
             //set a recheck in 15 minutes
             runEvery15Minutes(evaluateAutomation)
             log.debug("Active Exception Rules. A 15 minute recheck was scheduled at ${new Date()}.")
             return;
-       	}
+        }
         else {
-        	//fans are required and no exception rules are active
+            //fans are required and no exception rules are active
             switchesOn()
-        } 
+        }
     }
 	else {
     	//the fans are not needed and should be shut off
@@ -148,7 +159,10 @@ def fansRequired () {
     log.debug("Seeking operating state: ${triggerStates.toString()}.") 
     if (triggerStates.contains(currentOperatingState.toString())) {                       	
         return true
-    }  
+    }
+    //else if (state.ManualOffRequested == true ) {
+    //	return false
+    //}
     else {
         //no fans are required
         return false
